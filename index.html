@@ -139,7 +139,7 @@ function periodStats(p){const s=iso(p.start),e=iso(p.end);const tx=S.tx.filter(t
 function editPay(){const p=S.pay||{amount:'',freq:'biweekly',next:iso(new Date()),save:10,saveType:'pct'};const d=$('#dlg');
  d.innerHTML=`<h2>Your paycheck</h2><label>Take-home pay per paycheck (after tax)</label><input id="pA" type="number" inputmode="decimal" value="${p.amount}" placeholder="e.g. 1850">
  <label>How often are you paid?</label><select id="pF">${[['weekly','Every week'],['biweekly','Every 2 weeks'],['semimonthly','Twice a month (15th & last day)'],['monthly','Once a month']].map(([v,l])=>`<option value="${v}" ${p.freq===v?'selected':''}>${l}</option>`).join('')}</select>
- <label>Date of a recent or upcoming payday</label><input id="pN" type="date" value="${p.next}">
+ <label>Date of a recent or upcoming payday</label>${dateSel('pN',p.next)}
  <label>Save &amp; invest from each paycheck</label><div class="row" style="gap:8px"><input id="pS" type="number" inputmode="decimal" value="${p.save}" style="flex:2"><select id="pT" style="flex:1"><option value="pct" ${p.saveType==='pct'?'selected':''}>% of pay</option><option value="amt" ${p.saveType==='amt'?'selected':''}>$ amount</option></select></div>
  <div class="row"><span></span><span><button class="ghost" onclick="dlg.close()">Cancel</button> <button class="btn" id="pSave">Save</button></span></div>`;
  $('#pSave').onclick=()=>{const a=parseFloat($('#pA').value);if(!(a>0)||!$('#pN').value)return alert('Enter your pay amount and a payday');S.pay={amount:a,freq:$('#pF').value,next:$('#pN').value,save:parseFloat($('#pS').value)||0,saveType:$('#pT').value};save();d.close();render()};d.showModal()}
@@ -204,7 +204,7 @@ function editTx(id){const t=S.tx.find(x=>x.id===id)||{type:'expense',date:today(
  <label>Amount</label><input id="fA" type="number" inputmode="decimal" step="0.01" value="${t.amount}">
  <label>What was it?</label><input id="fN" value="${esc(t.note)}" placeholder="e.g. Kroger">
  <label>Category</label><select id="fC">${opts(t.cat)}</select>
- <label>Date</label><input id="fD" type="date" value="${t.date}">
+ <label>Date</label>${dateSel('fD',t.date)}
  <div class="row">${id?'<button class="ghost" style="background:var(--badS);color:var(--bad)" id="fDel">Delete</button>':'<span></span>'}<span><button class="ghost" onclick="dlg.close()">Cancel</button> <button class="btn" id="fS">Save</button></span></div>`;
  let type=t.type;$('#tE').onclick=()=>{type='expense';$('#tE').className='btn';$('#tI').className='ghost'};$('#tI').onclick=()=>{type='income';$('#tI').className='btn';$('#tE').className='ghost'};
  $('#fN').oninput=e=>{if(!id){const g=guessCat(e.target.value);if(g!=='Other')$('#fC').value=g}};
@@ -214,9 +214,12 @@ function editTx(id){const t=S.tx.find(x=>x.id===id)||{type:'expense',date:today(
 
 /* ---------- bills ---------- */
 function upcomingBills(days){const out=[];for(const b of S.bills){const n=nextDue(b);if(!n)continue;const diff=dayN(n);if(diff>=-3&&diff<=days&&!(b.paid&&b.paid[billKey(b,n)]))out.push({...b,key:billKey(b,n),when:diff<0?`${-diff} day(s) overdue`:diff===0?'Due today':`Due in ${diff} day(s)`,diff})}return out.sort((a,b)=>a.diff-b.diff)}
+function dateSel(id,val){const d=pd(val||iso(new Date())),y0=new Date().getFullYear();const o=(n,v,l)=>`<option value="${v}" ${n===v?'selected':''}>${l}</option>`;const ch=`onchange="syncDate('${id}')"`;
+ return `<div class="row" style="gap:6px"><select id="${id}_m" ${ch} style="flex:2">${[...Array(12)].map((_,i)=>o(d.getMonth(),i,new Date(2000,i,1).toLocaleDateString(undefined,{month:'short'}))).join('')}</select><select id="${id}_d" ${ch} style="flex:1">${[...Array(31)].map((_,i)=>o(d.getDate(),i+1,i+1)).join('')}</select><select id="${id}_y" ${ch} style="flex:1.4">${[-1,0,1,2].map(k=>o(d.getFullYear(),y0+k,y0+k)).join('')}</select></div><input type="hidden" id="${id}" value="${iso(d)}">`}
+function syncDate(id){const m=+document.getElementById(id+'_m').value,y=+document.getElementById(id+'_y').value,ds=document.getElementById(id+'_d');const mx=dim(y,m);if(+ds.value>mx)ds.value=mx;document.getElementById(id).value=iso(new Date(y,m,+ds.value))}
 function freqFields(pre,b){const f=bf(b),nd=nextDue(b);return `<label>How often</label><select id="${pre}F" onchange="document.getElementById('${pre}Mo').hidden=this.value!=='monthly';document.getElementById('${pre}Wk').hidden=this.value==='monthly'">${Object.entries(FREQ).map(([v,l])=>`<option value="${v}" ${f===v?'selected':''}>${l}</option>`).join('')}</select>
  <div id="${pre}Mo" ${f!=='monthly'?'hidden':''}><label>Day of the month it comes out</label><input id="${pre}D" type="number" min="1" max="31" value="${b.day||1}"></div>
- <div id="${pre}Wk" ${f==='monthly'?'hidden':''}><label>Next date it comes out</label><input id="${pre}S" type="date" value="${f==='monthly'?(b.start||iso(new Date())):(nd?iso(nd):(b.start||iso(new Date())))}"></div>`}
+ <div id="${pre}Wk" ${f==='monthly'?'hidden':''}><label>Next date it comes out</label>${dateSel(pre+'S',f==='monthly'?(b.start||iso(new Date())):(nd?iso(nd):(b.start||iso(new Date()))))}</div>`}
 function readFreq(pre){const f=document.getElementById(pre+'F').value;const o={freq:f,day:Math.max(1,Math.min(31,parseInt(document.getElementById(pre+'D').value)||1))};if(f!=='monthly'){o.start=document.getElementById(pre+'S').value||iso(new Date());o.day=pd(o.start).getDate()}return o}
 function editBill(id){const b=S.bills.find(x=>x.id===id)||{name:'',amount:'',day:1,cat:'Utilities',freq:'monthly'};const d=$('#dlg');
  d.innerHTML=`<h2>${id?'Edit':'Add'} bill</h2><label>Name</label><input id="bN" value="${esc(b.name)}" placeholder="e.g. Car payment"><label>Amount</label><input id="bA" type="number" inputmode="decimal" value="${b.amount}">${freqFields('b',b)}<label>Category</label><select id="bC">${opts(b.cat)}</select>
@@ -342,7 +345,7 @@ let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hid
 
 $('#monthLbl').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
 render();lock();
-if('serviceWorker' in navigator){let reloaded=false;const hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtl&&!reloaded){reloaded=true;location.reload()}});
+if('serviceWorker' in navigator){let reloaded=false;const hadCtl=!!navigator.serviceWorker.controller;const doReload=()=>{if(reloaded)return;if(document.getElementById('dlg').open){document.getElementById('dlg').addEventListener('close',doReload,{once:true});return}reloaded=true;location.reload()};navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtl)doReload()});
  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{r.update().catch(()=>{});document.addEventListener('visibilitychange',()=>{if(!document.hidden)r.update().catch(()=>{})})}).catch(()=>{})}
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 </script>
