@@ -84,7 +84,7 @@ button.fab{box-shadow:0 0 24px #34f5c566}
 <script>
 const KEY='ledger-v1';
 const DEFAULT_CATS=['Groceries','Dining','Gas','Transport','Housing','Utilities','Phone & Internet','Subscriptions','Shopping','Health','Entertainment','Insurance','Debt','Other'];
-const RULES={Groceries:/grocer|walmart|kroger|aldi|safeway|publix|trader joe|whole foods|costco|heb|food lion/i,Dining:/restaurant|mcdonald|starbucks|chipotle|doordash|uber ?eats|grubhub|pizza|cafe|coffee|taco|burger|wendy|chick/i,Gas:/shell|exxon|chevron|bp |marathon|sunoco|speedway|fuel|gas/i,Transport:/uber|lyft|parking|toll|transit/i,Subscriptions:/netflix|spotify|hulu|disney|apple\.com|icloud|youtube|prime|patreon|audible|max\.com|paramount|subscription/i,'Phone & Internet':/verizon|at&t|t-mobile|comcast|xfinity|spectrum|internet/i,Utilities:/electric|water|power|energy|utility|gas co/i,Shopping:/amazon|target|best buy|ebay|etsy|shein|temu/i,Health:/pharmacy|cvs|walgreens|doctor|dental|clinic|gym|fitness/i,Entertainment:/steam|playstation|xbox|cinema|theater|ticket/i,Insurance:/insurance|geico|progressive|allstate|state farm/i};
+const RULES={Groceries:/loblaw|no frills|sobeys|metro |food basics|superstore|freshco|save on|safeway|iga |maxi |provigo|farm boy|t&t|grocer|walmart|kroger|aldi|safeway|publix|trader joe|whole foods|costco|heb|food lion/i,Dining:/tim horton|a&w|harvey|skip ?the ?dishes|swiss chalet|boston pizza|restaurant|mcdonald|starbucks|chipotle|doordash|uber ?eats|grubhub|pizza|cafe|coffee|taco|burger|wendy|chick/i,Gas:/petro-?can|esso|husky|ultramar|pioneer|circle k|shell|exxon|chevron|bp |marathon|sunoco|speedway|fuel|gas/i,Transport:/uber|lyft|parking|toll|transit/i,Subscriptions:/netflix|spotify|hulu|disney|apple\.com|icloud|youtube|prime|patreon|audible|max\.com|paramount|subscription/i,'Phone & Internet':/rogers|bell |telus|fido|koodo|virgin|freedom mobile|videotron|shaw|verizon|at&t|t-mobile|comcast|xfinity|spectrum|internet/i,Utilities:/hydro|enbridge|fortis|electric|water|power|energy|utility|gas co/i,Shopping:/canadian tire|shoppers drug|winners|dollarama|amazon|target|best buy|ebay|etsy|shein|temu/i,Health:/pharmacy|cvs|walgreens|doctor|dental|clinic|gym|fitness/i,Entertainment:/steam|playstation|xbox|cinema|theater|ticket/i,Insurance:/intact|desjardins|td insur|insurance|geico|progressive|allstate|state farm/i};
 let S=load();
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d)return Object.assign({tx:[],bills:[],budgets:{},cats:DEFAULT_CATS.slice(),pin:null},d)}catch(e){}return{tx:[],bills:[],budgets:{},cats:DEFAULT_CATS.slice(),pin:null}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert('Could not save: storage unavailable')}}
@@ -192,14 +192,14 @@ function toDate(s){s=s.trim();let m;if(m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
 const num=s=>{if(s==null)return NaN;s=String(s).trim();const neg=/^\(.*\)$/.test(s)||/^-/.test(s.replace(/[$\s]/g,''));const n=parseFloat(s.replace(/[^0-9.]/g,''));return isNaN(n)?NaN:neg?-n:n};
 function importCSV(file){if(!file)return;const rd=new FileReader();rd.onload=()=>{const rows=parseCSV(rd.result);if(rows.length<2)return alert('That file looks empty.');
  const h=rows[0].map(x=>x.toLowerCase().trim()),f=re=>h.findIndex(x=>re.test(x));
- const iD=f(/date/),iDesc=f(/desc|payee|merchant|name|memo|details/),iA=f(/^amount|amount$/),iDr=f(/debit|withdraw/),iCr=f(/credit|deposit/),iT=f(/^type$|transaction type/);
+ const iD=f(/date/),iDesc=f(/desc|payee|merchant|name|memo|details/),iDesc2=f(/description 2/),iA=f(/^amount|amount$|^cad\$|^usd\$/),iDr=f(/debit|withdraw/),iCr=f(/credit|deposit/),iT=f(/^type$|transaction type/);
  if(iD<0||(iA<0&&iDr<0))return alert('Could not find Date and Amount columns in this CSV.');
  const seen=new Set(S.tx.map(t=>t.date+'|'+t.amount+'|'+(t.note||'').toLowerCase()));let added=0,skipped=0;
  // decide sign convention: if most amounts are positive and there is no debit column, look at a type column
  for(const r of rows.slice(1)){const date=toDate(r[iD]||'');if(!date)continue;let a;
   if(iA>=0){a=num(r[iA]);if(iT>=0&&/debit|sale|purchase|withdraw/i.test(r[iT]||''))a=-Math.abs(a);if(iT>=0&&/credit|deposit|payment|refund/i.test(r[iT]||''))a=Math.abs(a)}
   else{const d=num(r[iDr]),c=num(r[iCr]);a=!isNaN(d)&&d!==0?-Math.abs(d):c}
-  if(isNaN(a)||a===0)continue;const note=(iDesc>=0?r[iDesc]:'').trim().replace(/\s+/g,' ').slice(0,60);
+  if(isNaN(a)||a===0)continue;const note=((iDesc>=0?r[iDesc]:'')+' '+(iDesc2>=0&&iDesc2!==iDesc?r[iDesc2]:'')).trim().replace(/\s+/g,' ').slice(0,60);
   const t={id:uid(),date,amount:Math.round(Math.abs(a)*100)/100,type:a<0?'expense':'income',note,cat:a<0?guessCat(note):'Other'};
   const k=t.date+'|'+t.amount+'|'+note.toLowerCase();if(seen.has(k)){skipped++;continue}seen.add(k);S.tx.push(t);added++}
  const mine=S.tx.slice(-added);if(added&&mine.every(t=>t.type==='income')&&confirm(`All ${added} rows came in as income. Many credit card exports list purchases as positive numbers. Treat them as expenses instead?`))for(const t of mine){t.type='expense';t.cat=guessCat(t.note)}
