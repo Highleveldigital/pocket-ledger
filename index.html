@@ -214,7 +214,23 @@ function payBill(id,key){const b=S.bills.find(x=>x.id===id);if(!key){const u=upc
  if(confirm(`Also log ${money(b.amount)} for ${b.name} as a bill payment?`))S.tx.push({id:uid(),type:'expense',amount:b.amount,note:b.name,cat:b.cat,date:today(),bill:b.id});save();render()}
 
 /* ---------- paste bills ---------- */
-function parseBills(text){const out=[];
+function parseBills(text){
+ text=text.replace(/^\s*\|?\s*:?-{2,}.*$/gm,'').replace(/\*\*/g,'');
+ const a=parseLines(text);
+ // tables copied cell-by-cell: regroup lines into rows
+ const HDR=/^(bills?|names?|amount|cost|price|due( date| day)?|date|day|category|type|frequency|how often|notes?|payment|account|company)$/i;
+ const SOFT=new RegExp('^('+S.cats.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+'|monthly|weekly|bi-?weekly|yearly|annually|auto.?pay|manual|yes|no|-)$','i');
+ const rows=[];let cur=null;
+ for(let l of text.split(/\r?\n/)){l=l.replace(/^\||\|$/g,'').trim();if(!l||HDR.test(l))continue;
+  const hasNum=/\d/.test(l);
+  if(!hasNum&&SOFT.test(l))continue;
+  if(!hasNum&&(!cur||cur.num)){cur={t:l,num:false};rows.push(cur)}
+  else if(cur){cur.t+=' | '+l;if(hasNum)cur.num=true}}
+ const b=parseLines(rows.map(r=>r.t).join('\n'));
+ const score=x=>x.length*2-x.filter(y=>y.dayGuess).length;
+ const best=score(b)>score(a)?b:a;
+ return best.filter(x=>!/^total/i.test(x.name))}
+function parseLines(text){const out=[];
  for(let line of text.split(/\r?\n/)){line=line.trim();if(!line)continue;
   const nums=[];const re=/(\$\s?)?(\d{1,3}(?:,\d{3})+|\d+)(\.\d{1,2})?\s*(st|nd|rd|th)?\b/gi;let m;
   // month-name dates like "Nov 15" / "15 Nov" / "11/15"
@@ -234,8 +250,25 @@ function parseBills(text){const out=[];
 function billCat(n){if(/rent|mortgage|condo|strata/i.test(n))return'Housing';if(/insur/i.test(n))return'Insurance';if(/hydro|electric|enbridge|gas bill|water|utilit|fortis/i.test(n))return'Utilities';if(/phone|cell|mobile|internet|wifi|rogers|bell|telus|fido|koodo|virgin|freedom|shaw/i.test(n))return'Phone & Internet';if(/loan|credit|card|visa|mastercard|amex|line of credit|loc|payment/i.test(n))return'Debt';if(/gym|fitness/i.test(n))return'Health';if(/car|lease|auto|transit|presto/i.test(n))return'Transport';const g=guessCat(n);return g==='Other'&&/netflix|spotify|prime|disney|crave|apple|google|youtube|xbox|playstation/i.test(n)?'Subscriptions':g}
 function pasteBills(){const d=$('#dlg');d.innerHTML=`<h2>Paste your bills</h2><p class="mut" style="margin-top:0">Copy your bill list or chart (from Notes, a spreadsheet, an email…) and paste it below. One bill per line, with a name, amount and the day it comes out.</p>
  <textarea id="pbT" rows="7" style="width:100%;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)" placeholder="Phone   $85    20th&#10;Car insurance   142.50   due the 3rd&#10;Netflix | 18.99 | 2"></textarea>
+ <label class="ghost" style="display:block;text-align:center;padding:12px;border-radius:10px;background:var(--accs);color:var(--acc);font-weight:600;font-size:15px;margin:10px 0">📷 Use a photo or screenshot instead<input type="file" accept="image/*" hidden onchange="readBillPhoto(this.files[0])"></label><p id="pbMsg" class="mut" style="margin:0 0 6px"></p>
  <div class="row" style="margin-top:10px"><button class="ghost" onclick="dlg.close()">Cancel</button><button class="btn" id="pbGo">Read bills</button></div>`;
  $('#pbGo').onclick=()=>{const list=parseBills($('#pbT').value);if(!list.length)return alert("I couldn't find any bills. Make sure each line has a name and an amount.");reviewBills(list)};d.showModal();$('#pbT').focus()}
+
+let _ocr;function loadOCR(){return _ocr||(_ocr=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';sc.onload=res;sc.onerror=()=>{_ocr=null;rej(new Error('load'))};document.head.appendChild(sc)}))}
+function prepImage(file){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const sc=Math.min(2,2400/Math.max(img.width,img.height))||1;const c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);
+ const d=x.getImageData(0,0,c.width,c.height),p=d.data;let sum=0;for(let i=0;i<p.length;i+=4)sum+=p[i]*.3+p[i+1]*.59+p[i+2]*.11;const dark=sum/(p.length/4)<128;
+ for(let i=0;i<p.length;i+=4){let g=p[i]*.3+p[i+1]*.59+p[i+2]*.11;if(dark)g=255-g;g=g>170?255:g<90?0:g;p[i]=p[i+1]=p[i+2]=g}x.putImageData(d,0,0);URL.revokeObjectURL(img.src);res(c)};img.onerror=rej;img.src=URL.createObjectURL(file)})}
+async function readBillPhoto(file){if(!file)return;const msg=$('#pbMsg'),go=$('#pbGo');go.disabled=true;
+ try{msg.textContent='Getting the text reader ready (first time only)…';await loadOCR();
+  msg.textContent='Reading your picture on this phone…';const canvas=await prepImage(file);
+  const w=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text')msg.textContent=`Reading your picture… ${Math.round(m.progress*100)}%`}});
+  await w.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+  const {data}=await w.recognize(canvas);await w.terminate();
+  const text=data.text.replace(/[|¦]/g,' | ').replace(/[“”]/g,'"').replace(/(\d) ?[,.] ?(\d\d)\b/g,'$1.$2').replace(/\bS(\d)/g,'$$$1');
+  $('#pbT').value=text.trim();const list=parseBills(text);
+  if(list.length)reviewBills(list);else msg.textContent="I couldn't find bills in that picture. Check the text above, fix it, and tap Read bills."}
+ catch(e){msg.textContent=e.message==='load'?'Could not download the text reader. Connect to the internet once and try again.':'Something went wrong reading that picture. Try a clearer screenshot.'}
+ finally{go.disabled=false}}
 function reviewBills(list){const d=$('#dlg');d.innerHTML=`<h2>Check these ${list.length} bills</h2><p class="mut" style="margin-top:0">Fix anything that's off, then add them.</p>
  <div style="max-height:55vh;overflow:auto">${list.map((b,i)=>`<div style="border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px"><div class="row"><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:16px"><input type="checkbox" id="rk${i}" checked style="width:20px;margin:0"> Add</label>${b.dayGuess?'<span class="mut" style="color:var(--bad)">Check the due day</span>':''}</div>
  <input id="rn${i}" value="${esc(b.name)}"><div class="row" style="gap:8px"><div style="flex:1"><label>Amount</label><input id="ra${i}" type="number" inputmode="decimal" value="${b.amount}"></div><div style="flex:1"><label>Due day</label><input id="rd${i}" type="number" min="1" max="31" value="${b.day}"></div></div><select id="rc${i}" style="margin-bottom:0">${opts(b.cat)}</select></div>`).join('')}</div>
