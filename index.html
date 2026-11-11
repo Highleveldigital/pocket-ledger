@@ -342,7 +342,8 @@ let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hid
 
 $('#monthLbl').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
 render();lock();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator){let reloaded=false;const hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtl&&!reloaded){reloaded=true;location.reload()}});
+ navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{r.update().catch(()=>{});document.addEventListener('visibilitychange',()=>{if(!document.hidden)r.update().catch(()=>{})})}).catch(()=>{})}
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 </script>
 </body>
