@@ -97,7 +97,7 @@ Object.defineProperty(DLG,'open',{get:()=>OV.classList.contains('on')});
 DLG.showModal=()=>{OV.classList.add('on');DLG.scrollTop=0};
 DLG.close=()=>{if(!DLG.open)return;OV.classList.remove('on');DLG.dispatchEvent(new Event('close'))};
 window.dlg=DLG;
-const KEY='ledger-v1',APPVER='15';
+const KEY='ledger-v1',APPVER='16';
 const DEFAULT_CATS=['Groceries','Dining','Gas','Transport','Housing','Utilities','Phone & Internet','Subscriptions','Shopping','Health','Entertainment','Insurance','Debt','Other'];
 const RULES={Groceries:/loblaw|no frills|sobeys|metro |food basics|superstore|freshco|save on|safeway|iga |maxi |provigo|farm boy|t&t|grocer|walmart|kroger|aldi|safeway|publix|trader joe|whole foods|costco|heb|food lion/i,Dining:/tim horton|a&w|harvey|skip ?the ?dishes|swiss chalet|boston pizza|restaurant|mcdonald|starbucks|chipotle|doordash|uber ?eats|grubhub|pizza|cafe|coffee|taco|burger|wendy|chick/i,Gas:/petro-?can|esso|husky|ultramar|pioneer|circle k|shell|exxon|chevron|bp |marathon|sunoco|speedway|fuel|gas/i,Transport:/uber|lyft|parking|toll|transit/i,Subscriptions:/netflix|spotify|hulu|disney|apple\.com|icloud|youtube|prime|patreon|audible|max\.com|paramount|subscription/i,'Phone & Internet':/rogers|bell |telus|fido|koodo|virgin|freedom mobile|videotron|shaw|verizon|at&t|t-mobile|comcast|xfinity|spectrum|internet/i,Utilities:/hydro|enbridge|fortis|electric|water|power|energy|utility|gas co/i,Shopping:/canadian tire|shoppers drug|winners|dollarama|amazon|target|best buy|ebay|etsy|shein|temu/i,Health:/pharmacy|cvs|walgreens|doctor|dental|clinic|gym|fitness/i,Entertainment:/steam|playstation|xbox|cinema|theater|ticket/i,Insurance:/intact|desjardins|td insur|insurance|geico|progressive|allstate|state farm/i};
 let S=load();
@@ -124,12 +124,12 @@ function fail(msg){const d=document.getElementById('dlg');if(d&&d.open){let e=d.
 window.addEventListener('error',e=>fail('Something went wrong: '+(e.message||'unknown error')+'. Please send this message to get it fixed.'));
 window.addEventListener('unhandledrejection',e=>{if(document.getElementById('dlg').open)fail('Something went wrong: '+(e.reason&&e.reason.message||e.reason))});
 /* ---------- quick add ---------- */
-function quickCats(){const q=['Gas','Groceries'];for(const c of Object.keys(S.budgets||{}))if(S.budgets[c]>0&&!q.includes(c))q.push(c);return q.filter(c=>S.cats.includes(c))}
+function quickCats(){const q=['Gas','Groceries','Dining'];for(const c of Object.keys(S.budgets||{}))if(S.budgets[c]>0&&!q.includes(c))q.push(c);return q.filter(c=>S.cats.includes(c))}
 function quickBar(){return `<div class="quick">${quickCats().map(c=>`<button class="qbtn" onclick="quickAdd('${esc(c)}')"><span>${ic(c)}</span>${esc(c)}</button>`).join('')}</div>`}
 function quickAdd(c){const last=[...S.tx].reverse().find(t=>t.type==='expense'&&t.cat===c);const st=S.pay?periodStats(period()):null,bud=(S.budgets||{})[c],spent=st?(st.byCat[c]||0):0;const d=$('#dlg');
  d.innerHTML=`<h2>${ic(c)} ${esc(c)}</h2>${bud&&st?`<p class="mut" style="margin-top:-4px">${money(Math.max(0,bud-spent))} left in your ${esc(c)} budget this paycheck</p>`:''}
  <label>How much?</label><input id="qA" type="text" inputmode="decimal" autocomplete="off" placeholder="${last?money(last.amount):'$0.00'}" style="font-size:28px;font-weight:700">
- <label>Where? (optional)</label><input id="qN" autocomplete="off" placeholder="${esc(last&&last.note||(c==='Gas'?'e.g. Petro-Canada':'e.g. Loblaws'))}">
+ <label>Where? (optional)</label><input id="qN" autocomplete="off" placeholder="${esc(last&&last.note||(c==='Gas'?'e.g. Petro-Canada':c==='Dining'?'e.g. Tim Hortons':'e.g. Loblaws'))}">
  <div class="row"><button class="ghost" onclick="dlg.close()">Cancel</button><button class="btn" id="qGo" style="flex:1;margin-left:10px;padding:14px">Add ${esc(c)}</button></div>`;
  $('#qGo').onclick=()=>{const a=amt($('#qA').value);if(!(a>0))return fail('Enter how much you spent');S.tx.push({id:uid(),type:'expense',amount:Math.round(a*100)/100,note:$('#qN').value.trim(),cat:c,date:today()});save();d.close();render();toast(`Added ${money(a)} for ${c}`)};
  d.showModal();setTimeout(()=>$('#qA').focus(),50)}
